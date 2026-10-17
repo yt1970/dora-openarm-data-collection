@@ -18,22 +18,12 @@ version = "0.1.0"
 requires-python = "==3.12.*"
 dependencies = [
     "dora-rs-cli==1.0.1",
-    "dora-openarm",
-    "dora-openarm-cell-lifter",
     "dora-openarm-data-collection-ui",
     "dora-openarm-dataset-recorder",
-    "dora-openarm-dummy",
-    "dora-openarm-dummy-camera",
-    "dora-openarm-dummy-ker",
-    "dora-openarm-ker",
-    "dora-openarm-kinematics",
     "dora-openarm-mujoco",
-    "dora-openarm-quitter",
-    "dora-openarm-vr",
-    "dora-openarm-webxr",
-    "dora-opencv-image-splitter",
-    "opencv-video-capture",
-    "openarm-driver>=0.5.1",
+    "dora-openarm-slider-teleop",
+    "dora-openarm-mouse-teleop",
+    "dora-openarm-kinematics",
 ]
 
 [tool.uv]
@@ -54,3 +44,5 @@ dora-openarm-quitter = { path = "nodes/dora-openarm-quitter", editable = true }
 dora-openarm-vr = { path = "nodes/dora-openarm-vr", editable = true }
 dora-openarm-webxr = { path = "nodes/dora-openarm-webxr", editable = true }
 dora-opencv-image-splitter = { path = "nodes/dora-opencv-image-splitter", editable = true }
+dora-openarm-slider-teleop = { path = "nodes/dora-openarm-slider-teleop", editable = true }
+dora-openarm-mouse-teleop = { path = "nodes/dora-openarm-mouse-teleop", editable = true }

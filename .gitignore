@@ -16,3 +16,15 @@ dataset/
 /out/
 /.venv/
 *.txt
+# --- OpenArm MCP (自作分) ---
+# 収集データ・変換データ・学習結果(大きいので入れない)
+data_*/
+lerobot_*/
+outputs/
+*.log
+mcp_act_log.jsonl
+*.bak
+__pycache__/
+.venv/
+.DS_Store
+openarm_dataset/

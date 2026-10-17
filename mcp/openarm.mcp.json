@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "openarm": {
+      "command": "/opt/homebrew/bin/npx",
+      "args": ["-y", "mcp-remote", "http://127.0.0.1:8765/mcp"]
+    }
+  }
+}

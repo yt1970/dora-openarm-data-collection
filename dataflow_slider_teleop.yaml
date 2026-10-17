@@ -1,0 +1,19 @@
+nodes:
+  - id: slider-teleop
+    build: pip install -e nodes/dora-openarm-slider-teleop
+    path: dora-openarm-slider-teleop
+    inputs:
+      tick: dora/timer/millis/20
+    outputs:
+      - position_left
+      - position_right
+      - status
+
+  - id: mujoco-collect
+    build: pip install -e nodes/dora-openarm-mujoco
+    path: ./mujoco_mac.sh
+    args: "--scene demo --keyframe home --enable-collision --ctrl --viewer --render"
+    inputs:
+      move_position_left: slider-teleop/position_left
+      move_position_right: slider-teleop/position_right
+

@@ -1,0 +1,56 @@
+nodes:
+  - id: slider-teleop
+    build: pip install -e nodes/dora-openarm-slider-teleop
+    path: dora-openarm-slider-teleop
+    inputs:
+      tick: dora/timer/millis/20
+    outputs:
+      - position_left
+      - position_right
+      - status
+
+  - id: mujoco-collect
+    build: pip install -e nodes/dora-openarm-mujoco
+    path: ./mujoco_mac.sh
+    args: "--scene demo --keyframe home --enable-collision --ctrl --viewer --render"
+    inputs:
+      move_position_left: slider-teleop/position_left
+      move_position_right: slider-teleop/position_right
+      request_state: dora/timer/millis/4
+    outputs:
+      - status
+      - state_right
+      - state_left
+      - camera_wrist_right
+      - camera_wrist_left
+      - camera_head_left
+      - camera_head_right
+      - camera_ceiling
+
+  - id: ui
+    build: pip install -e nodes/dora-openarm-data-collection-ui
+    path: dora-openarm-data-collection-ui
+    env:
+      METADATA_FILE: "metadata_mujoco.yaml"
+    inputs:
+      tick: dora/timer/secs/1
+    outputs:
+      - command
+
+  - id: recorder
+    build: pip install -e nodes/dora-openarm-dataset-recorder
+    path: dora-openarm-dataset-recorder
+    env:
+      METADATA_FILE: "metadata_mujoco.yaml"
+      DIRECTORY: "vr_mujoco_data"
+    inputs:
+      command: ui/command
+      arm_right_action: slider-teleop/position_right   # left → right に修正
+      arm_right_observation: mujoco-collect/state_right # 変更
+      arm_left_action: slider-teleop/position_left      # right → left に修正
+      arm_left_observation: mujoco-collect/state_left   # 変更
+      camera_wrist_right: mujoco-collect/camera_wrist_right
+      camera_wrist_left: mujoco-collect/camera_wrist_left
+      camera_head_left: mujoco-collect/camera_head_left
+      camera_head_right: mujoco-collect/camera_head_right
+      camera_ceiling: mujoco-collect/camera_ceiling

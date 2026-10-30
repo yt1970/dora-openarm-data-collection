@@ -1,0 +1,59 @@
+diff --git a/src/dora_openarm_dataset_recorder/main.py b/src/dora_openarm_dataset_recorder/main.py
+index 808f3b9..50cab1a 100644
+--- a/src/dora_openarm_dataset_recorder/main.py
++++ b/src/dora_openarm_dataset_recorder/main.py
+@@ -381,12 +381,39 @@ def main():
+         event_id = event["id"]
+         if event_id == "command":
+             command = event["value"][0].as_py()
++            # if command == "start":
++            #     episode = Episode()
++            #     episode.number = event["metadata"].get("episode_number", 0)
++            #     episode.task_index = event["metadata"].get("task_index", 0)
++            #     episode_writer = dataset_writer.create_episode_writer(episode)
++            # elif command in ("success", "fail"):
++            #     if command == "success":
++            #         episode.success = True
++            #     episode_writer.finish()
++            #     dataset_writer.finish_episode(episode)
++            #     episode = None
++            #     episode_writer = None
++            # elif command == "cancel":
++            #     episode_writer.cancel()
++            #     episode = None
++            #     episode_writer = None
+             if command == "start":
++                if episode is not None:
++                    print("start ignored: episode already running", flush=True)
++                    continue
+                 episode = Episode()
+                 episode.number = event["metadata"].get("episode_number", 0)
+                 episode.task_index = event["metadata"].get("task_index", 0)
+-                episode_writer = dataset_writer.create_episode_writer(episode)
++                try:
++                    episode_writer = dataset_writer.create_episode_writer(episode)
++                except ValueError as e:
++                    print(f"start failed: {e}", flush=True)
++                    episode = None
++                    episode_writer = None
+             elif command in ("success", "fail"):
++                if episode is None:
++                    print(f"{command} ignored: no active episode", flush=True)
++                    continue
+                 if command == "success":
+                     episode.success = True
+                 episode_writer.finish()
+@@ -394,9 +421,13 @@ def main():
+                 episode = None
+                 episode_writer = None
+             elif command == "cancel":
++                if episode is None:
++                    print("cancel ignored: no active episode", flush=True)
++                    continue
+                 episode_writer.cancel()
+                 episode = None
+                 episode_writer = None
++                
+             elif command == "quit":
+                 if episode is not None:
+                     episode_writer.finish()

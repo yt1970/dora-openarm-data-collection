@@ -3,6 +3,8 @@
 MuJoCo 上の OpenArm をテレオペで動かしてデータを集め、模倣学習(ACT)した動作を
 MCP ツールとして公開し、LLM(LM Studio など)から自然言語で操作するための一式です。
 
+**最新で完全な再現手順は [`README.ja.md`](README.ja.md) にあります**(`box_to_tray`、`reset_box`、iPhone テレオペを含む)。
+
 ベース: [enactic/dora-openarm-data-collection](https://github.com/enactic/dora-openarm-data-collection)
 (ライセンスはベースのリポジトリに従います。公開前に確認してください)
 
@@ -13,9 +15,10 @@ LLM が解釈して、必要なツールだけを呼びます。
 
 | ツール | 動作 |
 | --- | --- |
-| `run_task(task)` | `raise_right` / `raise_left` / `lower_right` / `lower_left` のどれか1つを実行(終わってから返る) |
+| `run_task(task)` | `raise_right` / `raise_left` / `lower_right` / `lower_left` / `box_to_tray` のどれか1つを実行(終わってから返る) |
 | `get_state()` | 各腕の論理状態(`home` / `raised`)と関節角を返す |
-| `reset()` | 両腕を初期姿勢に戻す(学習した動作ではなく、補間) |
+| `reset()` | 両腕を初期姿勢に戻す(学習した動作ではなく、補間。箱は動かさない) |
+| `reset_box()` | 箱だけを初期位置に戻す(腕は動かさない) |
 
 - 動かさない側の腕は、直前の目標を保持します。
 - 上がっている腕を上げる、下がっている腕を下げる、は理由つきエラーを返します(モデルが誤って呼んでも止まります)。

@@ -3,7 +3,7 @@
 # 順番は raise_right → lower_right → raise_left → lower_left。
 # 先に「上げる」と「下げる」の両方を片腕で試せるようにするため。
 source ~/lerobot-env/bin/activate
-cd /Users/yutako/dora-openarm-data-collection
+cd "$(dirname "$0")"
 for t in raise_right lower_right raise_left lower_left; do
   lerobot-train \
     --dataset.repo_id=local/ceiling_trim_$t \

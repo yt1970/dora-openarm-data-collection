@@ -1,0 +1,21 @@
+[project]
+name = "dora-openarm-iphone-teleop"
+version = "0.1.0"
+description = "iPhone (ARKit) 6DoF pose teleop node for OpenArm"
+requires-python = "==3.12.*"
+dependencies = [
+    "dora-rs >= 0.5.0",
+    "numpy",
+    "scipy",
+    "pyarrow",
+]
+
+[project.scripts]
+dora-openarm-iphone-teleop = "dora_openarm_iphone_teleop.main:main"
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

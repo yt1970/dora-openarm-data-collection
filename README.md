@@ -2,6 +2,8 @@
 
 This repository provides data collection configurations for [OpenArm](https://openarm.dev/) with [dora-rs](https://dora-rs.ai/).
 
+日本語の再現手順(模倣学習 + MCP): [README.ja.md](README.ja.md)
+
 ## Setup
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and Git,
@@ -89,6 +91,117 @@ Open http://localhost:8000/ on the local machine for the data collection UI, and
 ### Dummy configuration
 
 [`dataflow_dummy.yaml`](dataflow_dummy.yaml) is a configuration that doesn't use real OpenArm. We can use this for testing a dataflow without real OpenArm.
+
+## Box to tray (imitation learning demo)
+
+This is a bimanual manipulation demo in MuJoCo: the right hand picks up a box
+and puts it in the black tray, and the left hand moves out of the way. It is
+collected with an iPhone and a mouse, trained with ACT
+([LeRobot](https://github.com/huggingface/lerobot)) and exposed as an MCP tool.
+
+### 1. Collect data (iPhone + mouse)
+
+The right arm is controlled by an iPhone (ARKit app in
+[`ios/PhoneTeleop/PhoneTeleopApp.swift`](ios/PhoneTeleop/PhoneTeleopApp.swift),
+UDP port 5007) and the left arm by the mouse. An arm that receives iPhone poses
+is controlled by the iPhone and the other arm by the mouse; if the iPhone stops
+sending for about 1.5 seconds, the arm goes back to the mouse. The iPhone and
+the Mac must be on the same Wi-Fi router (tethering doesn't work because the
+Mac gets no IPv4 address).
+
+```bash
+dora run dataflow_box_to_tray.yaml
+```
+
+Open http://localhost:8000/ for the UI. The box position is randomized (±3 cm
+and yaw) at startup and on every box reset by `--randomize-objects 0.03` in the
+MuJoCo node arguments. Press Success only for episodes that put the box in the
+tray.
+
+The dataset is written to `data_box_to_tray/dataset/` and is recreated when the
+dataflow is restarted. Rename it after each session, e.g.
+`data_box_to_tray_bak/dataset_1`, and merge the successful episodes of all
+sessions:
+
+```bash
+python merge_sessions.py data_box_to_tray_all/dataset \
+  data_box_to_tray_bak/dataset_1 data_box_to_tray_bak/dataset_2
+```
+
+### 2. Convert and train
+
+Convert to the LeRobot format with only the ceiling camera, at 10 fps, with the
+idle part at the beginning and the end of each episode trimmed (run it with the
+`openarm_dataset` checkout's environment):
+
+```bash
+uv run --project openarm_dataset python convert_box_to_tray_10fps.py
+```
+
+This writes `lerobot_ceiling_trim_box_to_tray_10fps/`. Train ACT in a separate
+environment that has LeRobot (`lerobot[dataset]`, `lerobot[training]`) and
+`mcp<2`:
+
+```bash
+lerobot-train \
+  --dataset.repo_id=local/ceiling_box_to_tray_10fps \
+  --dataset.root=$PWD/lerobot_ceiling_trim_box_to_tray_10fps \
+  --policy.type=act --policy.device=mps --policy.push_to_hub=false \
+  --policy.chunk_size=50 --policy.n_action_steps=50 \
+  --batch_size=8 --steps=10000 --save_freq=2000 \
+  --output_dir=outputs/train/act_box_to_tray \
+  --job_name=act_box_to_tray --wandb.enable=false
+```
+
+It took about 4 hours 15 minutes for 10,000 steps with 33 episodes on an Apple
+Silicon Mac.
+
+### 3. Run the policy
+
+To run only the policy in the simulator (no MCP), use the evaluation node. It
+starts the policy 3 seconds after startup and stops it after `ACT_RUN_SEC`
+seconds. `ACT_MAXSTEP` limits the change of the target per step to reduce
+jerky movements:
+
+```bash
+ACT_RUN_SEC=70 ACT_REPLAN=50 ACT_MAXSTEP=0.03 dora run dataflow_act_box_to_tray.yaml
+```
+
+### 4. Run it from an LLM through MCP
+
+```bash
+dora run dataflow_act_v2.yaml
+```
+
+`openarm_act_node_v2.py` loads five ACT policies (`raise_right`, `raise_left`,
+`lower_right`, `lower_left` and `box_to_tray`) and serves MCP at
+`http://127.0.0.1:8765/mcp`:
+
+| Tool | What it does |
+|---|---|
+| `run_task(task)` | Runs one task. `box_to_tray` needs both arms down and takes up to about 50 seconds. |
+| `get_state()` | Returns the logical state (down or raised) and the joint angles of each arm. |
+| `reset()` | Returns both arms to the home pose. The box is not moved. |
+| `reset_box()` | Returns only the box to its initial position. The arms are not moved. |
+
+The checkpoint paths can be changed by `ACT_CKPT_PATTERN` and `ACT_BOX_CKPT`.
+
+### Patches for the submodules
+
+`patches/` has changes to submodules that are not in their upstream:
+
+- `mujoco-free-camera.patch`: the initial free camera of the MuJoCo viewer
+  (field of view 15, center 1.3 0 1.3, azimuth 180, elevation -10; the distance
+  can be changed by `DORA_OPENARM_MUJOCO_CAM_DISTANCE`).
+- `dataset-recorder-guard.patch`: the recorder no longer crashes when it gets
+  success, fail or cancel without start.
+
+Apply them from the repository root:
+
+```bash
+git -C nodes/dora-openarm-mujoco apply ../../patches/mujoco-free-camera.patch
+git -C nodes/dora-openarm-dataset-recorder apply ../../patches/dataset-recorder-guard.patch
+```
 
 ## Debugging OpenArm libraries
 

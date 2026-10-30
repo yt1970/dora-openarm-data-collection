@@ -1,6 +1,6 @@
 # OpenArm MCP 進捗管理
 
-最終更新: 2026-10-17(Step 7 完了: LM Studio + qwen/qwen3.8-27b から、自然言語で否定・組み合わせを含む指示が動いた)
+最終更新: 2026-10-27(マウス+iPhone の双腕同時テレオペが動いた。次は物体操作デモ2パターンの収集。下の「双腕同時テレオペ」を参照)
 
 ## このファイルの使い方(新しい会話の Claude へ)
 
@@ -256,7 +256,69 @@ caffeinate -i lerobot-train \
 - 環境変数: `ACT_CKPT_PATTERN`、`ACT_DEVICE`(既定 mps)、`MCP_PORT`、`MCP_LOG_FILE`(既定 `mcp_act_log.jsonl`)。
 - 未確認の点: ①`request_state` を33msで出して問題ないか(収集時は4ms)。②`HOME`(J4=π/2)は試作から持ってきた仮の値で、`reset` の戻り先。③画像の色順(BGR→RGB)。④state の qpos が先頭8要素(7関節+グリッパ)か。⑤推論が33msに間に合うか(チャンクの再計算時)。
 
-## 次にやること
+
+## 物体操作デモ box_to_tray(2026-10-28)
+
+### 収集
+- dataflow: `dataflow_box_to_tray.yaml`(`dataflow_mouse_iphone_data_collection.yaml` をコピーし、METADATA_FILE を `metadata_box_to_tray.yaml`、DIRECTORY を `data_box_to_tray` に変更)。
+- 箱のランダム配置: mujocoノードの `--randomize-objects 0.03`(xy ±3cm と向き(yaw)がランダム。起動時と Rキーのリセット時に適用)。`mujoco-collect` の args に追加した。
+- 右手=iPhone、左手=マウス。左手でトレー上の空間をどける。
+- 起動エラー: `.venv` に pip が無く、pyenv の pip(3.11)で `build:` が失敗した → `uv pip install pip` で解決。
+- 再起動のたびに `data_box_to_tray/dataset` が空から作り直されるため、収集後すぐに名前を変える運用にした。退避先: `data_box_to_tray_bak_1028_0732/dataset_1`、`dataset_2`(`dataset_test` は試し収集で、混ぜない)。
+
+### セッションのまとめ
+- `merge_sessions.py`(リポジトリ直下): 複数セッションの成功エピソードだけを新しいデータセットにコピーし、IDを0から振り直す。`SKIP` で指定したエピソードは除外(`dataset_2` の ID 36 は、容量が他の約半分のため除外)。
+  
+## 双腕同時テレオペ(マウス+iPhone)(2026-10-27)
+
+詳細な引き継ぎは Project の doc `claude/iphone-bimanual-teleop-handover.md`。以降の模倣学習データ収集は、この方式で行う。
+
+### 目的とデモ
+
+- 今まで: 両腕の上げ下げ4動作(マウスのみ、片腕ずつ)。
+- 次のデモ2パターン(物体操作):
+  1. 右手でボックスを持ち上げて、**左手の上に載せる**
+  2. 右手でボックスを持ち上げて、**黒いトレーに入れる**
+- iPhone を使う理由: マウスでは再現できない**手首の回転**を取れるため。
+- 現状: iPhone 16(LiDARなし)+マウスで動作確認済み。操作中は**天井(シーリング)カメラの映像を見る**と操作しやすい。2台同時は未確認。
+
+### 構成
+
+iPhone(ARKit、Swiftアプリ) → UDP 5007 → `iphone-teleop`ノード(ハブ) → `ik` → `mujoco-collect`
+
+- 腕の割り当て: スマホが送ってきている腕はスマホ、それ以外はマウス(スマホ0〜2台)。スマホが約1.5秒途切れると、その腕はマウスに戻る(現在姿勢から再スタート)。
+- ハブがマウスの目標も受けて IK に渡す。担当腕は `phone_sides` でマウスへ返す。
+- 記録する action は `ik/position_*`(関節角16次元)で、既存データと同じ形式。
+- ファイル: `nodes/dora-openarm-iphone-teleop/`(新規)、`nodes/dora-openarm-mouse-teleop/`(改変)、`dataflow_mouse_iphone_data_collection.yaml`(記録先 `iphone_mouse_mujoco_data`)、`ios/iPhoneTeleop/`(Xcode、Swift 1ファイル)。
+
+### 操作と注意
+
+- iPhone アプリ: MacのIPを入れる → 前方に向けて「接続」 → 左腕/右腕を選ぶ → 追従ON/OFF(トグル。ONの瞬間のポーズが基準で、実際の腕の位置から開始) → 縦スライダーでグリッパ(上=開、下=閉) → 腕リセット(起動位置へ)。
+- ラチェット操作: ON → 動かす → 窮屈になったら OFF → 持ち直す → ON。背面カメラを指でふさがない。
+- マウス: ドラッグ=x/y、ホイール=グリッパ、左ボタンを押しながらホイール=z(変更を提案した。適用済みか要確認)、↑↓でz、Rで箱リセット。
+- MacとiPhoneは同じWi-Fiルーターにつなぐ(テザリング下はIPv6のみで不可)。MacのIPは `ipconfig getifaddr en0`。
+- 署名は無料のApple ID(7日で期限切れ。Xcodeで再ビルド)。iPhone 8 は最新OSが iOS 16.7 のため、Minimum Deployments を 16.0 に下げる(ケーブルが無く未実施)。
+- 保留: Android(arrows We2 FCG02、ARCore対応リストにあり)。借りた iPhone 16e(iOS 27.0.1)での Xcode エラー(`dyld_shared_cache_extract_dylibs failed`、コード908。Macの空き容量不足の可能性)。
+
+### デモの未決事項
+
+- シーン: `--scene demo` に、ボックスと黒いトレーがあるか未確認。無ければ MuJoCo のシーン定義の変更が必要。
+- 左手の役割: パターン1の受け皿(どの位置に、どう差し出すか)。
+- タスク名の案: `box_to_left`、`box_to_tray`。dataflow・メタデータは既存の命名(`dataflow_<task>.yaml`、`metadata_<task>.yaml`、`data_<task>/dataset/`)に合わせる案。
+- 収集: エピソード数(既存は約30)、箱の初期位置、Rキーでの箱リセット、成功のみ使う。
+- 学習: 既存の手順(変換 → 天井カメラ1台 → ACT)を流用できる見込み。物体操作はボックスやトレーの位置が画像から分かる必要があり、天井カメラで見えるか要確認。足りなければ手首カメラを追加。
+- MCP: `run_task` に2動作を追加するか(物体の位置は状態チェックが難しい)。
+
+### 次にやること(双腕同時テレオペ)
+
+1. シーンにボックスと黒いトレーがあるか確認する。
+2. 2パターンの収集条件(左手の役割、箱の初期位置、エピソード数)を決める。
+3. タスクごとの dataflow・メタデータを作る。
+4. 数エピソードを試し収集して、操作性(遅延、ズレ、手首の回転)を確認する。
+5. 本収集 → 変換 → 学習。
+6. (任意)iPhone 8 を2台目にして、両手スマホを試す。
+
+## 次にやること(4動作のStep 7まで。古い項目)
 
 1. 前提エラー(上がっている腕を上げる、下がっている腕を下げる)と `reset` を `call_mcp.py` で確認する。両腕を続けて動かしたときに、もう一方の腕が保持されるかも見る。
 2. Step 7: Hermes(Qwen3.5 9B)から MCP(http://127.0.0.1:8765/mcp)を呼ぶ。否定・組み合わせの指示(「右は上げないで左を下げて」)で、期待どおりのツールだけが呼ばれるか見る。
@@ -281,6 +343,11 @@ caffeinate -i lerobot-train \
 先の会話で、MCPサーバー + 関節角の補間によるdoraノードの試作(`dora-openarm-mcp-teleop`)を作った。FastMCP(streamable-http、127.0.0.1:8765)をdoraノード内のスレッドで動かし、指令ごとに補間して `position_left` / `position_right` を20msごとに出す構成。ステップ5〜6では、補間部分をACT推論に置き換える。
 
 ## 進捗ログ(新しい順)
+- 2026-10-30: `box_to_tray` を MCP の5つ目の動作として追加(`openarm_act_node_v2.py`、`dataflow_act_v2.yaml`。元の `openarm_act_node.py` は残している)。`reset`(腕のみ)と `reset_box`(箱のみ、MuJoCo の button_x に信号を送る)に分けた。シミュレーターのフリーカメラの初期位置を変更(fov 15、中心 1.3 0 1.3、方位角 180、仰角 -10。距離は環境変数 `DORA_OPENARM_MUJOCO_CAM_DISTANCE`)。`call_mcp.py` は `~/lerobot-env` の python で実行する(pyenv の python 3.11 は mcp の版が違い動かない)。MCP からの `box_to_tray`、`reset`、`reset_box` の動作を確認。次は動画の撮影。
+  
+- 2026-10-28: `box_to_tray`(右手で箱を持ち上げて黒いトレーへ。左手はマウスでトレー上の空間をどける)を収集。成功33本(dataset_1: 9、dataset_2: 25、うち1本は短すぎるため除外)を `data_box_to_tray_all/dataset` にまとめた。次は変換(`convert_box_to_tray.py`)と学習。
+  
+- 2026-10-27: マウス+iPhone 16 の双腕同時テレオペが動いた(スマホが送る腕はスマホ、他はマウス。腕の切替、縦スライダーのグリッパ、腕リセットを追加)。物体操作デモ2パターン(右手でボックスを持ち上げて左手の上へ/黒いトレーへ)の収集を、この方式で行う方針。引き継ぎは Project doc `claude/iphone-bimanual-teleop-handover.md`。
 
 - 2026-10-17: LM Studio + `qwen/qwen3.8-27b` で、自然言語からロボットを動かせた。ログで 7 回のうち 6 回が意図どおり(否定・順番・状態エラーを含む)、「両手下げて」だけ `reset` を選んだ。Hermes はモデルを変えても遅く、LM Studio を使うことにした。`tev1`(分類用モデル)は Hermes 用としては不適と判断。
 - 2026-10-17: Claude desktop をクライアントにして Step 7 を予行。「右手上げて」「右手上げないで左手上げて」「左手下げないで右手下げて」で、必要なツールだけが呼ばれ、動かさない腕は保持された。前提エラー(下がっている腕を下げる)も、「右手は既に下がっているので、下げる動作はできません」と理由つきで返った。

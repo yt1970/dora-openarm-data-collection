@@ -24,9 +24,15 @@ import cv2
 import numpy as np
 import pyarrow as pa
 import torch
+import os as _os
+
 
 ROOT = Path(__file__).resolve().parent
+N_ACT = int(_os.environ.get("ACT_REPLAN", "50"))  # 何ステップごとに再計画するか
+MAX_STEP = float(_os.environ.get("ACT_MAXSTEP", "0.02"))  # 1ステップで動ける最大量(rad)
+SMOOTH = float(_os.environ.get("ACT_SMOOTH", "1.0"))  # 1.0=そのまま、小さいほどなめらか
 TASKS = ("raise_right", "raise_left", "lower_right", "lower_left")
+
 
 # 各タスクで推論を回すフレーム数(30fps)。トリム済みデータの平均長(約95 / 約190フレーム)に余裕を足した値。
 TASK_FRAMES = {"raise_right": 120, "raise_left": 120, "lower_right": 220, "lower_left": 200}
@@ -154,10 +160,18 @@ class Controller:
                 torch.from_numpy(img).float().div(255).permute(2, 0, 1).unsqueeze(0)
             ),
         }
+        policy.config.n_action_steps = N_ACT
         with torch.inference_mode():
             action = post(policy.select_action(pre(obs)))
         a = action.squeeze(0).cpu().numpy().astype(np.float32)
         arm = job["arm"]
+        prev = getattr(self, "_prev", {}).get(arm)
+        if prev is not None:
+            a = prev + SMOOTH * (a - prev)
+            a = prev + np.clip(a - prev, -MAX_STEP, MAX_STEP)
+        if not hasattr(self, "_prev"):
+            self._prev = {}
+        self._prev[arm] = a
         self.target[arm] = a[:8].copy() if arm == "right" else a[8:16].copy()
         job["frames"] -= 1
         if job["frames"] <= 0:

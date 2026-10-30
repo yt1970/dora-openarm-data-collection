@@ -28,3 +28,4 @@ __pycache__/
 .venv/
 .DS_Store
 openarm_dataset/
+*.egg-info/

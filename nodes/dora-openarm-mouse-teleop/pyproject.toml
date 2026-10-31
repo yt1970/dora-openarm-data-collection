@@ -1,0 +1,22 @@
+[project]
+name = "dora-openarm-mouse-teleop"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = "==3.12.*"
+dependencies = [
+    "dora-rs >= 0.5.0",
+    "dearpygui >= 1.11",
+    "numpy",
+    "pyarrow",
+]
+
+[project.scripts]
+dora-openarm-mouse-teleop = "dora_openarm_mouse_teleop.main:main"
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

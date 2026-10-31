@@ -1,0 +1,85 @@
+nodes:
+  - id: mouse-teleop
+    build: pip install -e nodes/dora-openarm-mouse-teleop
+    path: dora-openarm-mouse-teleop
+    inputs:
+      tick: dora/timer/millis/20
+      pose_right: fk/pose_right
+      pose_left: fk/pose_left
+    outputs:
+      - target_right
+      - target_left
+      - status
+      - button_x
+
+  - id: ik
+    build: pip install -e nodes/dora-openarm-kinematics
+    path: dora-openarm-ik
+    args: "--tick-hz 50 --limit-velocity"
+    inputs:
+      target_right: mouse-teleop/target_right
+      target_left: mouse-teleop/target_left
+    outputs:
+      - position_right
+      - position_left
+
+  - id: fk
+    build: pip install -e nodes/dora-openarm-kinematics
+    path: dora-openarm-fk
+    inputs:
+      position_right: mujoco-collect/position_right
+      position_left: mujoco-collect/position_left
+    outputs:
+      - pose_right
+      - pose_left
+
+  - id: mujoco-collect
+    build: pip install -e nodes/dora-openarm-mujoco
+    path: ./mujoco_mac.sh
+    args: "--scene demo --keyframe home --enable-collision --ctrl --viewer --render"
+    inputs:
+      move_position_right: ik/position_right
+      move_position_left: ik/position_left
+      request_position: dora/timer/millis/20
+      request_state: dora/timer/millis/4
+      button_x: mouse-teleop/button_x
+      
+    outputs:
+      - status
+      - position_right
+      - position_left
+      - state_right
+      - state_left
+      - camera_wrist_right
+      - camera_wrist_left
+      - camera_head_left
+      - camera_head_right
+      - camera_ceiling
+
+  - id: ui
+    build: pip install -e nodes/dora-openarm-data-collection-ui
+    path: dora-openarm-data-collection-ui
+    env:
+      METADATA_FILE: "metadata_raise_left.yaml"
+    inputs:
+      tick: dora/timer/secs/1
+    outputs:
+      - command
+
+  - id: recorder
+    build: pip install -e nodes/dora-openarm-dataset-recorder
+    path: dora-openarm-dataset-recorder
+    env:
+      METADATA_FILE: "metadata_raise_left.yaml"
+      DIRECTORY: "data_raise_left"
+    inputs:
+      command: ui/command
+      arm_right_action: ik/position_right
+      arm_right_observation: mujoco-collect/state_right
+      arm_left_action: ik/position_left
+      arm_left_observation: mujoco-collect/state_left
+      camera_wrist_right: mujoco-collect/camera_wrist_right
+      camera_wrist_left: mujoco-collect/camera_wrist_left
+      camera_head_left: mujoco-collect/camera_head_left
+      camera_head_right: mujoco-collect/camera_head_right
+      camera_ceiling: mujoco-collect/camera_ceiling

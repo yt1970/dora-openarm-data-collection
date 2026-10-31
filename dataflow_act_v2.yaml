@@ -1,0 +1,35 @@
+nodes:
+  - id: mujoco-collect
+    build: pip install -e nodes/dora-openarm-mujoco
+    path: ./mujoco_mac.sh
+    args: "--scene demo --keyframe home --enable-collision --ctrl --viewer --render"
+    inputs:
+      move_position_right: act-infer/move_position_right
+      move_position_left: act-infer/move_position_left
+      # reset_box ツールが、箱だけを初期位置に戻すために使う
+      button_x: act-infer/button_x
+      request_state: dora/timer/millis/33
+    outputs:
+      - status
+      - position_right
+      - position_left
+      - state_right
+      - state_left
+      - camera_wrist_right
+      - camera_wrist_left
+      - camera_head_left
+      - camera_head_right
+      - camera_ceiling
+
+  - id: act-infer
+    path: /Users/yutako/lerobot-env/bin/python
+    args: /Users/yutako/dora-openarm-data-collection/openarm_act_node_v2.py
+    inputs:
+      tick: dora/timer/millis/33
+      state_right: mujoco-collect/state_right
+      state_left: mujoco-collect/state_left
+      camera_ceiling: mujoco-collect/camera_ceiling
+    outputs:
+      - move_position_right
+      - move_position_left
+      - button_x

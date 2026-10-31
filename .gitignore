@@ -12,12 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-dataset/
 /out/
+/*-graph.html
+/data/
 /.venv/
+# MuJoCo writes its warnings here.
+/MUJOCO_LOG.TXT
 *.txt
+*.envsubst.yaml
 # --- OpenArm MCP (自作分) ---
 # 収集データ・変換データ・学習結果(大きいので入れない)
+# 変換済みの lerobot_ceiling_trim_* だけは、再現用に git add -f で入れてある。
 data_*/
 lerobot_*/
 outputs/
